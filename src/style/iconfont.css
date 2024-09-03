@@ -1,0 +1,56 @@
+/* CDN 服务仅供平台体验和调试使用，平台不承诺服务的稳定性，企业客户需下载字体包自行发布使用并做好备份。 */
+/* CDN 服务仅供平台体验和调试使用，平台不承诺服务的稳定性，企业客户需下载字体包自行发布使用并做好备份。 */
+@font-face {
+  font-family: 'iconfont';  /* Project id 3555338 */
+  src: url('//at.alicdn.com/t/c/font_3555338_lr3xdpacgrk.woff2?t=1663689642600') format('woff2'),
+       url('//at.alicdn.com/t/c/font_3555338_lr3xdpacgrk.woff?t=1663689642600') format('woff'),
+       url('//at.alicdn.com/t/c/font_3555338_lr3xdpacgrk.ttf?t=1663689642600') format('truetype');
+}
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: .16rem;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-tianjiatianchong:before {
+  content: "\e696";
+}
+
+.icon-fanhui:before {
+  content: "\e624";
+}
+
+.icon-gouwulan:before {
+  content: "\e61a";
+}
+
+.icon-icserch:before {
+  content: "\e672";
+}
+
+.icon-bell:before {
+  content: "\e7c4";
+}
+
+.icon-position-fill:before {
+  content: "\e7af";
+}
+
+.icon-gouwudai:before {
+  content: "\e73e";
+}
+
+.icon-wodejuhuasuan:before {
+  content: "\e659";
+}
+
+.icon-home_fill_light:before {
+  content: "\e7d8";
+}
+
+.icon-order:before {
+  content: "\e7b3";
+}
+
