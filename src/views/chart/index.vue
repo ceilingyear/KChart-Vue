@@ -24,6 +24,8 @@
       </div>
     </div>
   </div>
+  <p style="margin-top: 20px;font-size: 12px;">ps：pc端用户请点击F12切换设备为移动端（切换为设备仿真）</p>
+  <img src="@/assets/tip.jpg" alt="">
 </template>
 
 <script lang='ts' setup>
