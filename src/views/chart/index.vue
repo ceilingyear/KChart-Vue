@@ -6,9 +6,15 @@
     <p class="asideNumber" v-for="item in asideNumber"
       :style="{ bottom: item.height + 'px', backgroundColor: config.bg.bgColor }">{{ item.value }}</p>
     <div v-if="initData.length > 0"
-      :style="{ backgroundColor: config.bg.bgColor, top: lastData.y + 'px', right: lastData.x <= config.canvas.width * .8 ? 0 : '50px' }"
+      :style="{ backgroundColor: config.bg.bgColor, top: lastData.y + 'px', right: lastData.x <= config.canvas.width * .8 ? '1px' : '50px' }"
       class="lstPrice" @click="reDraw">
       {{ initData[initData.length - 1][4] }}
+    </div>
+    <div v-show="intersect.isShow"
+      :style="{ top: intersect.y - 15 < 0 ? '16px' : intersect.y + 15 > config.canvas.height ? config.canvas.height - 1 : intersect.y + 'px', }"
+      class="checkPrice" @click="reDraw">
+      <p style="font-size: 10px;line-height: 10px;margin-bottom: 5px;">{{ intersect.price }}</p>
+      <p style="font-size: 10px;line-height: 10px;text-align: right;">{{ intersect.amplitude }}</p>
     </div>
     <div v-show="intersect.isShow" class="dashboard"
       :style="intersect.dir === 'left' ? { right: '20px' } : { left: '20px' }">
@@ -50,7 +56,7 @@ const config = {
     initKCount: 50, //初始化展示多少根K线
     initWidth: 5,
     maxWidth: 20,
-    minWidth: 5,
+    minWidth: 3,
     color: {
       up: '#03a0aa',
       down: '#ee4639'
@@ -71,6 +77,8 @@ const intersect = ref({
   x: 0,
   y: 0,
   dir: '',
+  price: '',
+  amplitude: '',
   isShow: false,
   data: [] as DashboardFormData[]
 })
@@ -79,13 +87,15 @@ const lastData = ref({ x: 0, y: 0 })
 // k线配置数据
 const kConfig = reactive({
   width: config.k.initWidth,
-  draggableX: config.k.initKCount * config.k.initWidth
+  draggableX: config.k.initKCount * config.k.initWidth,
+  ratio: 0 //换算价格和高度比例（减去了偏移量）
 })
 
 onMounted(() => {
   if (!canvas.value || !canvasBg.value) return
-  ctx.value = setupCanvas(canvas.value) 
-  ctxBg.value = setupCanvas(canvasBg.value) 
+  // ctx.value = setupCanvas(canvas.value) 
+  ctx.value = setupCanvas(canvas.value)
+  ctxBg.value = setupCanvas(canvasBg.value)
   // 获取数据
   initData.value = fakeData
   drawBg()
@@ -106,7 +116,7 @@ function reDraw() {
 }
 // k线数量
 const kCount = computed(() => {
-  return Math.round(config.canvas.width / kConfig.width)
+  return Math.round(config.canvas.width / (kConfig.width + 1))
 })
 // 事件
 function event() {
@@ -125,7 +135,6 @@ function event() {
       beginT = Date.now()
       eventType = 'draggable'
       reDraw()
-      
       if (!timer) {
         timer = setTimeout(() => {
           eventType = 'click'
@@ -197,7 +206,7 @@ function event() {
       let speed = moveX / moveT;
       if (Math.abs(speed) < .5) return
       speed = speed * 20 //阻尼移动的速度
-      const time:any = setInterval(() => {
+      const time: any = setInterval(() => {
         if (Math.abs(speed) <= 0.1) return clearInterval(time)
         if (kConfig.draggableX >= kConfig.width * initData.value.length || kConfig.draggableX + speed <= kConfig.width) return clearInterval(time)
         kConfig.draggableX += speed
@@ -255,11 +264,11 @@ function drawBg() {
 // 处理k线数据
 async function handleK() {
   if (!initData.value) return
-  const startDataCount = initData.value.length - Math.round(kConfig.draggableX / kConfig.width) //计算开始K线下标
-  const endDataCount = startDataCount + (Math.round(config.canvas.width / kConfig.width)) //计算结束K线下标=开始+页面K线数量
+  const startDataCount = initData.value.length - Math.round(kConfig.draggableX / (kConfig.width + 1)) //计算开始K线下标
+  const endDataCount = kConfig.draggableX / (kConfig.width + 1) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + 1)) : initData.value.length //计算结束K线下标=开始+页面K线数量
   const data = initData.value.slice(startDataCount > 0 ? startDataCount : 0, endDataCount)
   // 最高k线
-  const maxHeight = data.reduce((pre, cur) => {
+  const maxHigh = data.reduce((pre, cur) => {
     return Math.max(+cur[2], pre)
   }, 0)
   // 最低k线
@@ -268,13 +277,14 @@ async function handleK() {
   }, Infinity)
   // 计算换算比例
   const kChartViewHeight = config.canvas.height * (1 - (config.k.offset.top + config.k.offset.bottom))
-  const KChartViewDataHeight = maxHeight - maxLow
+  const KChartViewDataHeight = maxHigh - maxLow
   const ratio = kChartViewHeight / KChartViewDataHeight
   // 最新数据
   const lastItem = initData.value[initData.value.length - 1]
   const index = (initData.value.length - 1 - startDataCount) //下标
+
   const heightMiddle = lastItem[4] > lastItem[1] ? 0 : (Math.max(+lastItem[1], +lastItem[4],) - Math.min(+lastItem[1], +lastItem[4],)) * ratio //柱体
-  let y = ((maxHeight - Math.max(+lastItem[1], +lastItem[4],)) * ratio + config.k.offset.top * config.canvas.height) + heightMiddle  //y坐标 + 顶部针 + 是否大于收盘价 ？ 0 : 柱体高度
+  let y = ((maxHigh - Math.max(+lastItem[1], +lastItem[4],)) * ratio + config.k.offset.top * config.canvas.height) + heightMiddle  //y坐标 + 顶部针 + 是否大于收盘价 ？ 0 : 柱体高度
   if (y > config.canvas.height * (1 - config.k.offset.bottom)) {
     y = config.canvas.height - 9
   }
@@ -282,20 +292,21 @@ async function handleK() {
     y = 9
   }
   lastData.value = {
-    x: ((config.canvas.width / kCount.value * index) + index),
+    x: (kConfig.width + 1) * index,
     y,
   }
+  kConfig.ratio = ratio
   // 右侧数字
-  handleRightNumber(KChartViewDataHeight, maxLow)
+  handleRightNumber(ratio, maxLow, maxHigh)
   // 计算k线数据
   viewData.value = data.map((item, index) => {
     const heightTop = (+item[2] - Math.max(+item[1], +item[4],)) * ratio //顶部针
     const heightMiddle = (Math.max(+item[1], +item[4],) - Math.min(+item[1], +item[4],)) * ratio //柱体
     const heightBottom = (Math.min(+item[1], +item[4],) - +item[3]) * ratio //下部针
     return {
-      x: (config.canvas.width / kCount.value * index) + index,
-      y: (maxHeight - Math.max(+item[1], +item[4],)) * ratio + config.k.offset.top * config.canvas.height,
-      width: config.canvas.width / kCount.value,
+      x: (kConfig.width * index) + index,
+      y: (maxHigh - Math.max(+item[1], +item[4],)) * ratio + config.k.offset.top * config.canvas.height,
+      width: kConfig.width,
       heightTop,
       heightMiddle,
       heightBottom,
@@ -303,7 +314,7 @@ async function handleK() {
       low: +item[3] * ratio,
       close: +item[4] * ratio,
       open: +item[1] * ratio,
-      isMax: +item[2] === maxHeight,
+      isMax: +item[2] === maxHigh,
       isMin: +item[3] === maxLow,
       data: item
     }
@@ -311,54 +322,87 @@ async function handleK() {
   draw()
 }
 // 处理右侧数字
-function handleRightNumber(KChartViewDataHeight: number, maxLow: number) {
+function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
   let realIndex = 0
-  for (let index = config.bg.horCount - 1; index >= 0; index--) {
+  const topH = config.canvas.height * config.k.offset.top
+  const maxHighH = topH / ratio
+  const bottomH = config.canvas.height * config.k.offset.bottom
+  const maxLowH = bottomH / ratio
+  const fullRatio = (maxHigh + maxHighH - (maxLow - maxLowH)) / config.canvas.height //每px=多少价格
+  // console.log(maxHigh + maxHighH ,(maxLow - maxLowH),fullRatio);
+
+  const offset = 15 //上下偏移量
+  const textHOffset = 6 //偏移文字对齐横线
+  for (let index = 0; index < config.bg.horCount; index++) {
     if (index === 0) {
       asideNumber[0] = {
-        height: config.canvas.height - 15,
-        value: formatNumber(((config.canvas.height - 15) / (config.canvas.height / KChartViewDataHeight) + maxLow))
+        height: config.canvas.height - offset - textHOffset,
+        value: formatNumber(maxHigh + maxHighH)
       }
     } else if (index === config.bg.horCount - 1) {
       asideNumber[config.bg.horCount - 1] = {
-        height: 15,
-        value: formatNumber((15 / (config.canvas.height / KChartViewDataHeight) + maxLow))
+        height: offset - textHOffset,
+        value: formatNumber(maxLow - maxLowH)
       }
     } else {
-      const h = (config.canvas.height / (config.bg.horCount - 1)) * index
-      asideNumber[realIndex] = {
+      const h = (config.canvas.height / (config.bg.horCount - 1)) * index - textHOffset
+      asideNumber[index] = {
         height: h,
-        value: formatNumber((h / (config.canvas.height / KChartViewDataHeight) + maxLow))
+        value: formatNumber(((h + textHOffset) * fullRatio + maxLow - maxLowH))
       }
     }
     realIndex++
   }
+  console.log(asideNumber);
+
 }
 // 处理十字准星数据
 function handleIntersectData(e: TouchEvent) {
+  // 最高k线
+  const maxHigh = viewData.value.reduce((pre, cur) => {
+    return Math.max(+cur.data[2], pre)
+  }, 0)
+  // 最低k线
+  const maxLow = viewData.value.reduce((pre, cur) => {
+    return Math.min(+cur.data[3], pre)
+  }, Infinity)
+  const topH = config.canvas.height * config.k.offset.top
+  const maxHighH = topH / kConfig.ratio
+  const bottomH = config.canvas.height * config.k.offset.bottom
+  const maxLowH = bottomH / kConfig.ratio
+  const maxH = maxHigh + maxHighH //最高价格
+  const maxL = maxLow - maxLowH //最低价格
+  const ratio = (maxH - maxL) / config.canvas.height //每px=多少价格
+
   const touchX = e.targetTouches[0].clientX
   const isOutside = viewData.value.length * (kConfig.width + 1) < touchX
   const item = isOutside ? viewData.value[viewData.value.length - 1] : viewData.value.find(item => item.x - 1 <= touchX && item.x + kConfig.width >= touchX)!
 
   const x = item.x + kConfig.width / 2
-  const y = item.y + item.heightMiddle / 2
+  const y = e.targetTouches[0].clientY - 50 //-上部tab的高度
+  if (y < 0 || y > config.canvas.height) return //超出范围
   for (const key in item) {
     const element = item[key as keyof ChartData];
     element
   }
+  const curPrice = ((config.canvas.height - y) * ratio) + maxL
+  const lastPrice = (+initData.value[initData.value.length - 1][4])
+  const amplitude = ((curPrice - lastPrice) / lastPrice * 100).toFixed(2)
+
+  const data = [
+    { title: '时间', value: dayjs(+item.data[0]).format('MM-DD HH:mm:ss') },
+    { title: '开', value: formatNumber(+item.data[1]) },
+    { title: '收', value: formatNumber(+item.data[4]) },
+    { title: '高', value: formatNumber(+item.data[2]) },
+    { title: '低', value: formatNumber(+item.data[3]) },
+    { title: '涨跌幅', value: calculatePriceChangePercentage(+item.data[1], +item.data[4]), color: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? config.k.color.up : config.k.color.down, append: '%', before: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? '+' : '' },
+    { title: '涨额', value: (+item.data[4] - +item.data[1]).toFixed(2), color: (+item.data[4] - +item.data[1]) > 0 ? config.k.color.up : config.k.color.down },
+    { title: '振幅', value: '' + calculatePriceChangePercentage(+item.data[3], +item.data[2]), append: '%', before: +calculatePriceChangePercentage(+item.data[3], +item.data[2]) > 0 ? "+" : '' },
+    { title: '量', value: formatNumber(+item.data[5]) },
+    { title: '额', value: formatNumber(+item.data[6] / 10000), append: '万' },
+  ]
   intersect.value = {
-    x, y, isShow: true, dir: pointDirWithCanvas(config.canvas.width, x), data: [
-      { title: '时间', value: dayjs(+item.data[0]).format('MM-DD HH:mm:ss') },
-      { title: '开', value: formatNumber(+item.data[1]) },
-      { title: '收', value: formatNumber(+item.data[4]) },
-      { title: '高', value: formatNumber(+item.data[2]) },
-      { title: '低', value: formatNumber(+item.data[3]) },
-      { title: '涨跌幅', value: calculatePriceChangePercentage(+item.data[1], +item.data[4]), color: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? config.k.color.up : config.k.color.down, append: '%', before: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? '+' : '' },
-      { title: '涨额', value: (+item.data[4] - +item.data[1]).toFixed(2), color: (+item.data[4] - +item.data[1]) > 0 ? config.k.color.up : config.k.color.down },
-      { title: '振幅', value: '' + calculatePriceChangePercentage(+item.data[3], +item.data[2]), append: '%', before: +calculatePriceChangePercentage(+item.data[3], +item.data[2]) > 0 ? "+" : '' },
-      { title: '量', value: formatNumber(+item.data[5]) },
-      { title: '额', value: formatNumber(+item.data[6] / 10000), append: '万' },
-    ]
+    x, y, isShow: true, dir: pointDirWithCanvas(config.canvas.width, x), data, price: formatNumber(curPrice), amplitude: (+amplitude > 0 ? '+' : '') + amplitude + '%'
   }
   drawIntersect()
 }
@@ -384,6 +428,7 @@ function draw() {
   const ctxC = ctx.value
   for (let index = 0; index < viewData.value.length; index++) {
     const item = viewData.value[index];
+    // const x = item.x + 1
     ctxC.fillStyle = item.close > item.open ? config.k.color.up : config.k.color.down
     // 处理开盘收盘一样
     if (item.heightMiddle < 1) {
@@ -409,9 +454,17 @@ function draw() {
       ctxC.closePath();
       ctxC.fill()
     }
+    let width = 1
+    if (kConfig.width < 10) {
+      width = .5
+    }
+    if (kConfig.width < 2) {
+      width = .2
+    }
     // 上下针
-    ctxC.rect(item.x + item.width / 2, item.y - item.heightTop, 1, item.heightTop) //上部针
-    ctxC.rect(item.x + item.width / 2, item.y + item.heightMiddle, 1, item.heightBottom) //下部针
+    ctxC.rect(item.x + item.width / 2, item.y - item.heightTop, width, item.heightTop) //上部针
+    ctxC.rect(item.x + item.width / 2, item.y + item.heightMiddle, width, item.heightBottom) //下部针
+
     ctxC.fill()
     // 是最高点，需要展示数字
     if (item.isMax) {
@@ -438,7 +491,7 @@ function draw() {
     if (item.isMin) {
       const beginY = item.y + item.heightMiddle + item.heightBottom
       const beginX = item.x + item.width / 2
-      const dir = pointDirWithCanvas(config.canvas.width - kCount.value, beginX)
+      const dir = pointDirWithCanvas(config.canvas.width, beginX)
       const move = dir === 'left' ? 20 : -20
       ctxC.beginPath();
       ctxC.moveTo(beginX, beginY)
@@ -458,7 +511,8 @@ function draw() {
   }
   // 画最新数据的虚线
   ctxC.beginPath();
-  let y =lastData.value.y
+  let y = lastData.value.y
+
   if (lastData.value.x <= config.canvas.width * .8) {
     ctxC.moveTo(lastData.value.x + kConfig.width, y);
     ctxC.lineTo(config.canvas.width, y);
@@ -511,7 +565,7 @@ function draw() {
   position: absolute;
   right: 1px;
   font-size: 10px;
-  transform: translateY(50%);
+  /* transform: translateY(50%); */
   padding: 0 5px;
   z-index: 2;
   color: #999999;
@@ -519,13 +573,27 @@ function draw() {
 
 .lstPrice {
   position: absolute;
-
   padding: 0 5px;
   height: 18px;
   line-height: 17px;
   border: 1px solid black;
+
   border-radius: 3px;
   color: black;
+  z-index: 4;
+  font-size: 10px;
+  transform: translateY(-50%);
+}
+
+.checkPrice {
+  position: absolute;
+  height: 30px;
+  padding: 3px 7px;
+  right: 1px;
+  line-height: 17px;
+  border-radius: 3px;
+  background-color: black;
+  color: white;
   z-index: 4;
   font-size: 10px;
   transform: translateY(-50%);

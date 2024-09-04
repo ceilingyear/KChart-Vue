@@ -12,7 +12,7 @@ import commonjs from "vite-plugin-commonjs";
 export default defineConfig({
   server: {
     base:'http://localhost:3001/',
-    // host:'192.168.110.97',
+    host:'192.168.110.97',
     // host:'192.168.0.110',
     port: 3001, //改变访问本地端口号
     // proxy: {
