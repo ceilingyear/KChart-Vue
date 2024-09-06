@@ -16,6 +16,11 @@
       <p style="font-size: 10px;line-height: 10px;margin-bottom: 5px;">{{ intersect.price }}</p>
       <p style="font-size: 10px;line-height: 10px;text-align: right;">{{ intersect.amplitude }}</p>
     </div>
+    <div v-show="intersect.isShow"
+      :style="{ left: intersect.x - 45 < 0 ? 45 : intersect.x + 45 > config.canvas.width ? config.canvas.width : intersect.x + 'px', }"
+      class="checkTime" @click="reDraw">
+      <p style="font-size: 10px;line-height: 10px;">{{ intersect.data[0]?.value }}</p>
+    </div>
     <div v-show="intersect.isShow" class="dashboard"
       :style="intersect.dir === 'left' ? { right: '20px' } : { left: '20px' }">
       <div style="display: flex;justify-content: space-between;margin-bottom: 3px;" v-for="item in intersect.data">
@@ -24,49 +29,52 @@
       </div>
     </div>
   </div>
-  <p style="margin-top: 20px;font-size: 12px;">ps：pc端用户请点击F12切换设备为移动端（切换为设备仿真）</p>
-  <img src="@/assets/tip.jpg" alt="">
+
 </template>
 
 <script lang='ts' setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { calculatePriceChangePercentage, fakeData, formatNumber, getDistance, pointDirWithCanvas, setupCanvas } from './util';
-import { ChartData, DashboardFormData, MouseEvent } from './index.type';
+import { calculatePriceChangePercentage, formatNumber, getDistance, pointDirWithCanvas, setupCanvas } from './util';
+import { ChartData, KChartConfigType, DashboardFormData, MouseEvent } from './index.type';
 import dayjs from 'dayjs';
 
 const dpr = window.devicePixelRatio
+const props = defineProps<{
+  config: KChartConfigType,
+  data: string[][],
+  onEnd?: {
+    offsetNumber?: number,
+    fn: (e: TouchEvent) => void
+  }
+}>()
 const config = {
-  canvas: {
-    width: window.screen.width,
-    height: 300,
-    dampingFactor: .95, //阻尼系数0-1 越小阻尼越低
-  },
+  canvas: props.config.canvas,
   bg: {
-    horCount: 5, //背景横线
-    verCount: 6, //背景纵线
-    text: 'B i t g e t',
-    textColor: 'rgba(0, 0, 0, 0.2)',
-    fontSize: 30,
-    bgColor: 'white'
+    horCount: props.config.bg?.horCount || 5, //背景横线
+    verCount: props.config.bg?.verCount || 6, //背景纵线
+    text: props.config.bg?.text || 'B i t g e t',
+    textColor: props.config.bg?.textColor || 'rgba(0, 0, 0, 0.2)',
+    fontSize: props.config.bg?.fontSize || 30,
+    bgColor: props.config.bg?.bgColor || 'white'
   },
   k: {
     //上下偏移量
     offset: {
-      top: .05,
-      bottom: .05
+      top: props.config.k?.offset?.top || .05,
+      bottom: props.config.k?.offset?.bottom || .05
     },
-    initKCount: 50, //初始化展示多少根K线
-    initWidth: 5,
-    maxWidth: 20,
-    minWidth: 3,
+    initKCount: props.config.k?.initKCount || 50, //初始化展示多少根K线
+    initWidth: props.config.k?.initWidth || 5,
+    maxWidth: props.config.k?.maxWidth || 20,
+    minWidth: props.config.k?.minWidth || 3,
     color: {
-      up: '#03a0aa',
-      down: '#ee4639'
+      up: props.config.k?.color?.up || '#03a0aa',
+      down: props.config.k?.color?.down || '#ee4639'
     },
-    startDistance: 0,
-  }
+    startDistance: props.config.k?.startDistance || 0,
+    margin: props.config.k?.margin || 1,
+  },
 }
-
 const canvas = ref<OffscreenCanvas & HTMLCanvasElement>()
 const canvasBg = ref<OffscreenCanvas & HTMLCanvasElement>()
 const ctx = ref<CanvasRenderingContext2D>()
@@ -95,11 +103,10 @@ const kConfig = reactive({
 
 onMounted(() => {
   if (!canvas.value || !canvasBg.value) return
-  // ctx.value = setupCanvas(canvas.value) 
   ctx.value = setupCanvas(canvas.value)
   ctxBg.value = setupCanvas(canvasBg.value)
   // 获取数据
-  initData.value = fakeData
+  initData.value = props.data
   drawBg()
   handleK()
   event()
@@ -118,7 +125,7 @@ function reDraw() {
 }
 // k线数量
 const kCount = computed(() => {
-  return Math.round(config.canvas.width / (kConfig.width + 1))
+  return Math.round(config.canvas.width / (kConfig.width + config.k.margin))
 })
 // 事件
 function event() {
@@ -165,8 +172,13 @@ function event() {
       const isToLeft = lastTouch?.length === 1 && lastTouch[0].clientX < thisTouch[0].clientX //向左滑动
       const isToRight = lastTouch?.length === 1 && lastTouch[0].clientX > thisTouch[0].clientX //向右滑动
       const result = thisTouch[0].clientX - lastTouch[0].clientX
+      const offsetNumber = props.onEnd?.offsetNumber || 0
       // 如果超过数据不滑动了
-      if (kConfig.draggableX + result >= kConfig.width * initData.value.length && isToLeft || kConfig.draggableX + result <= kConfig.width && isToRight) {
+      if (kConfig.draggableX + result >= ((kConfig.width + config.k.margin) * (initData.value.length - offsetNumber)) && isToLeft) {
+        props.onEnd?.fn(e)
+      }
+      // 如果超过数据不滑动了
+      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft || kConfig.draggableX + result <= kConfig.width && isToRight) {
         return lastTouch = e.targetTouches
       }
       kConfig.draggableX += result
@@ -194,11 +206,13 @@ function event() {
   canvas.value.addEventListener('touchend', (e: TouchEvent) => {
     clearTimeout(timer)
     timer = undefined
+    console.log(eventType);
+
     // 处理拖动后的阻尼感
     if (eventType === 'draggable') {
       // 如果超过数据不滑动了
-      if (kConfig.draggableX >= kConfig.width * initData.value.length || kConfig.draggableX <= kConfig.width) {
-        return lastTouch = e.changedTouches
+      if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= kConfig.width) {
+        return lastTouch = e.targetTouches
       }
       e.preventDefault();
       const endX = e.changedTouches[0].clientX
@@ -210,7 +224,7 @@ function event() {
       speed = speed * 20 //阻尼移动的速度
       const time: any = setInterval(() => {
         if (Math.abs(speed) <= 0.1) return clearInterval(time)
-        if (kConfig.draggableX >= kConfig.width * initData.value.length || kConfig.draggableX + speed <= kConfig.width) return clearInterval(time)
+        if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= kConfig.width) return clearInterval(time)
         kConfig.draggableX += speed
         speed *= config.canvas.dampingFactor;
       }, 0);
@@ -266,8 +280,8 @@ function drawBg() {
 // 处理k线数据
 async function handleK() {
   if (!initData.value) return
-  const startDataCount = initData.value.length - Math.round(kConfig.draggableX / (kConfig.width + 1)) //计算开始K线下标
-  const endDataCount = kConfig.draggableX / (kConfig.width + 1) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + 1)) : initData.value.length //计算结束K线下标=开始+页面K线数量
+  const startDataCount = initData.value.length - Math.round(kConfig.draggableX / (kConfig.width + config.k.margin)) //计算开始K线下标
+  const endDataCount = kConfig.draggableX / (kConfig.width + config.k.margin) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + config.k.margin)) : initData.value.length //计算结束K线下标=开始+页面K线数量
   const data = initData.value.slice(startDataCount > 0 ? startDataCount : 0, endDataCount)
   // 最高k线
   const maxHigh = data.reduce((pre, cur) => {
@@ -294,7 +308,7 @@ async function handleK() {
     y = 9
   }
   lastData.value = {
-    x: (kConfig.width + 1) * index,
+    x: (kConfig.width + config.k.margin) * index,
     y,
   }
   kConfig.ratio = ratio
@@ -306,7 +320,7 @@ async function handleK() {
     const heightMiddle = (Math.max(+item[1], +item[4],) - Math.min(+item[1], +item[4],)) * ratio //柱体
     const heightBottom = (Math.min(+item[1], +item[4],) - +item[3]) * ratio //下部针
     return {
-      x: (kConfig.width * index) + index,
+      x: (kConfig.width * index) + index * config.k.margin,
       y: (maxHigh - Math.max(+item[1], +item[4],)) * ratio + config.k.offset.top * config.canvas.height,
       width: kConfig.width,
       heightTop,
@@ -331,7 +345,6 @@ function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
   const bottomH = config.canvas.height * config.k.offset.bottom
   const maxLowH = bottomH / ratio
   const fullRatio = (maxHigh + maxHighH - (maxLow - maxLowH)) / config.canvas.height //每px=多少价格
-  // console.log(maxHigh + maxHighH ,(maxLow - maxLowH),fullRatio);
 
   const offset = 15 //上下偏移量
   const textHOffset = 6 //偏移文字对齐横线
@@ -355,8 +368,6 @@ function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
     }
     realIndex++
   }
-  console.log(asideNumber);
-
 }
 // 处理十字准星数据
 function handleIntersectData(e: TouchEvent) {
@@ -377,11 +388,12 @@ function handleIntersectData(e: TouchEvent) {
   const ratio = (maxH - maxL) / config.canvas.height //每px=多少价格
 
   const touchX = e.targetTouches[0].clientX
-  const isOutside = viewData.value.length * (kConfig.width + 1) < touchX
+  const isOutside = viewData.value.length * (kConfig.width + config.k.margin) < touchX
   const item = isOutside ? viewData.value[viewData.value.length - 1] : viewData.value.find(item => item.x - 1 <= touchX && item.x + kConfig.width >= touchX)!
 
   const x = item.x + kConfig.width / 2
-  const y = e.targetTouches[0].clientY - 50 //-上部tab的高度
+  const y = e.targetTouches[0].clientY - config.canvas.top //-上部tab的高度
+
   if (y < 0 || y > config.canvas.height) return //超出范围
   for (const key in item) {
     const element = item[key as keyof ChartData];
@@ -430,7 +442,7 @@ function draw() {
   const ctxC = ctx.value
   for (let index = 0; index < viewData.value.length; index++) {
     const item = viewData.value[index];
-    // const x = item.x + 1
+    // const x = item.x + config.k.margin
     ctxC.fillStyle = item.close > item.open ? config.k.color.up : config.k.color.down
     // 处理开盘收盘一样
     if (item.heightMiddle < 1) {
@@ -508,7 +520,7 @@ function draw() {
       const text = formatNumber(+item.data[2])
       const textW = ctxC.measureText(text).width
       const moveT = dir === 'left' ? 5 : -textW - 5
-      ctxC.fillText(formatNumber(+item.data[2]), beginX + move + moveT, beginY + 5)
+      ctxC.fillText(formatNumber(+item.data[3]), beginX + move + moveT, beginY + 5)
     }
   }
   // 画最新数据的虚线
@@ -599,6 +611,20 @@ function draw() {
   z-index: 4;
   font-size: 10px;
   transform: translateY(-50%);
+}
+
+.checkTime {
+  position: absolute;
+  width: 90px;
+  text-align: center;
+  padding: 3px 7px;
+  bottom: 0;
+  border-radius: 3px;
+  background-color: black;
+  color: white;
+  z-index: 4;
+  font-size: 10px;
+  transform: translateX(-50%);
 }
 
 .dashboard {
