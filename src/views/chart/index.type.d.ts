@@ -28,7 +28,6 @@ export interface KChartConfigType {
       up?: string,
       down?: string
     },
-    startDistance?: number,
     margin?: number,
   }
 }

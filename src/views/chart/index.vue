@@ -52,7 +52,7 @@ const config = {
   bg: {
     horCount: props.config.bg?.horCount || 5, //背景横线
     verCount: props.config.bg?.verCount || 6, //背景纵线
-    text: props.config.bg?.text || 'B i t g e t',
+    text: props.config.bg?.text ,
     textColor: props.config.bg?.textColor || 'rgba(0, 0, 0, 0.2)',
     fontSize: props.config.bg?.fontSize || 30,
     bgColor: props.config.bg?.bgColor || 'white'
@@ -71,7 +71,6 @@ const config = {
       up: props.config.k?.color?.up || '#03a0aa',
       down: props.config.k?.color?.down || '#ee4639'
     },
-    startDistance: props.config.k?.startDistance || 0,
     margin: props.config.k?.margin || 1,
   },
 }
@@ -97,7 +96,7 @@ const lastData = ref({ x: 0, y: 0 })
 // k线配置数据
 const kConfig = reactive({
   width: config.k.initWidth,
-  draggableX: config.k.initKCount * config.k.initWidth,
+  draggableX: config.k.initKCount * (config.k.initWidth + 1),
   ratio: 0 //换算价格和高度比例（减去了偏移量）
 })
 
@@ -148,7 +147,7 @@ function event() {
         timer = setTimeout(() => {
           eventType = 'click'
           handleIntersectData(e)
-        }, 500);
+        }, 300);
       }
 
     }
@@ -173,12 +172,17 @@ function event() {
       const isToRight = lastTouch?.length === 1 && lastTouch[0].clientX > thisTouch[0].clientX //向右滑动
       const result = thisTouch[0].clientX - lastTouch[0].clientX
       const offsetNumber = props.onEnd?.offsetNumber || 0
-      // 如果超过数据不滑动了
+      // 加载事件
       if (kConfig.draggableX + result >= ((kConfig.width + config.k.margin) * (initData.value.length - offsetNumber)) && isToLeft) {
         props.onEnd?.fn(e)
       }
       // 如果超过数据不滑动了
-      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft || kConfig.draggableX + result <= kConfig.width && isToRight) {
+      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft ) {
+        kConfig.draggableX = (kConfig.width + config.k.margin) * initData.value.length
+        return lastTouch = e.targetTouches
+      }
+      if ( kConfig.draggableX + result <=(kConfig.width + config.k.margin) && isToRight) {
+        kConfig.draggableX = (kConfig.width + config.k.margin)
         return lastTouch = e.targetTouches
       }
       kConfig.draggableX += result
@@ -206,12 +210,10 @@ function event() {
   canvas.value.addEventListener('touchend', (e: TouchEvent) => {
     clearTimeout(timer)
     timer = undefined
-    console.log(eventType);
-
     // 处理拖动后的阻尼感
     if (eventType === 'draggable') {
       // 如果超过数据不滑动了
-      if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= kConfig.width) {
+      if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= (kConfig.width + config.k.margin)) {
         return lastTouch = e.targetTouches
       }
       e.preventDefault();
@@ -224,7 +226,7 @@ function event() {
       speed = speed * 20 //阻尼移动的速度
       const time: any = setInterval(() => {
         if (Math.abs(speed) <= 0.1) return clearInterval(time)
-        if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= kConfig.width) return clearInterval(time)
+        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(time)
         kConfig.draggableX += speed
         speed *= config.canvas.dampingFactor;
       }, 0);
@@ -271,6 +273,7 @@ function drawBg() {
     ctxC.stroke()
     ctxC.closePath()
   }
+  if (!config.bg.text) return
   var textHeight = config.bg.fontSize;
   ctxC.font = `${textHeight}px Arial`;
   const textW = ctxC.measureText(config.bg.text).width
@@ -280,8 +283,8 @@ function drawBg() {
 // 处理k线数据
 async function handleK() {
   if (!initData.value) return
-  const startDataCount = initData.value.length - Math.round(kConfig.draggableX / (kConfig.width + config.k.margin)) //计算开始K线下标
-  const endDataCount = kConfig.draggableX / (kConfig.width + config.k.margin) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + config.k.margin)) : initData.value.length //计算结束K线下标=开始+页面K线数量
+  const startDataCount = initData.value.length - Math.floor(kConfig.draggableX / (kConfig.width + config.k.margin)) - 1//计算开始K线下标
+  const endDataCount = kConfig.draggableX / (kConfig.width + config.k.margin) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + config.k.margin)) + 1 : initData.value.length //计算结束K线下标=开始+页面K线数量
   const data = initData.value.slice(startDataCount > 0 ? startDataCount : 0, endDataCount)
   // 最高k线
   const maxHigh = data.reduce((pre, cur) => {
@@ -314,13 +317,16 @@ async function handleK() {
   kConfig.ratio = ratio
   // 右侧数字
   handleRightNumber(ratio, maxLow, maxHigh)
+
   // 计算k线数据
   viewData.value = data.map((item, index) => {
     const heightTop = (+item[2] - Math.max(+item[1], +item[4],)) * ratio //顶部针
     const heightMiddle = (Math.max(+item[1], +item[4],) - Math.min(+item[1], +item[4],)) * ratio //柱体
     const heightBottom = (Math.min(+item[1], +item[4],) - +item[3]) * ratio //下部针
+    let x = (kConfig.width * index) + index * config.k.margin //原始x坐标
+
     return {
-      x: (kConfig.width * index) + index * config.k.margin,
+      x: x + ((kConfig.draggableX % (kConfig.width + 1)) - (kConfig.width + 1)),
       y: (maxHigh - Math.max(+item[1], +item[4],)) * ratio + config.k.offset.top * config.canvas.height,
       width: kConfig.width,
       heightTop,
@@ -371,6 +377,8 @@ function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
 }
 // 处理十字准星数据
 function handleIntersectData(e: TouchEvent) {
+  console.log(e);
+  
   // 最高k线
   const maxHigh = viewData.value.reduce((pre, cur) => {
     return Math.max(+cur.data[2], pre)
@@ -402,7 +410,8 @@ function handleIntersectData(e: TouchEvent) {
   const curPrice = ((config.canvas.height - y) * ratio) + maxL
   const lastPrice = (+initData.value[initData.value.length - 1][4])
   const amplitude = ((curPrice - lastPrice) / lastPrice * 100).toFixed(2)
-
+  console.log(item);
+  
   const data = [
     { title: '时间', value: dayjs(+item.data[0]).format('MM-DD HH:mm:ss') },
     { title: '开', value: formatNumber(+item.data[1]) },
@@ -412,7 +421,7 @@ function handleIntersectData(e: TouchEvent) {
     { title: '涨跌幅', value: calculatePriceChangePercentage(+item.data[1], +item.data[4]), color: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? config.k.color.up : config.k.color.down, append: '%', before: +calculatePriceChangePercentage(+item.data[1], +item.data[4]) > 0 ? '+' : '' },
     { title: '涨额', value: (+item.data[4] - +item.data[1]).toFixed(2), color: (+item.data[4] - +item.data[1]) > 0 ? config.k.color.up : config.k.color.down },
     { title: '振幅', value: '' + calculatePriceChangePercentage(+item.data[3], +item.data[2]), append: '%', before: +calculatePriceChangePercentage(+item.data[3], +item.data[2]) > 0 ? "+" : '' },
-    { title: '量', value: formatNumber(+item.data[5]) },
+    { title: '量', value: formatNumber(+item.data[5] / 10000), append: '万' },
     { title: '额', value: formatNumber(+item.data[6] / 10000), append: '万' },
   ]
   intersect.value = {

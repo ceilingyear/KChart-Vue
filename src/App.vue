@@ -34,7 +34,8 @@ const config: KChartConfigType = {
     top: 50
   },
   k: {
-    margin: 1
+    margin: 1,
+    initKCount:50
   }
 }
 
