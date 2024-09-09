@@ -1,8 +1,6 @@
 <template>
   <div class="nav">
     <div style="width: 30px;height: 30px;">
-      <img :hidden="!!route.meta.noBack" style="width: 30px;height: 30px;" src="@/assets/back.png"
-        @click="router.back()">
     </div>
     <p v-show="route.meta.title" style="font-weight: 500;">{{ route.meta.title }}</p>
     <div style="width: 30px;height: 30px;"></div>

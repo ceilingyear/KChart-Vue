@@ -48,11 +48,7 @@ KChart-vue is an open-source K-line chart developed based on the vue framework, 
 | 5     | Base currency trading volume                                                                                                         |
 | 6     | Quote currency trading volume                                                                                                        |
 
-## Install JavaScript (NPM)
-
-```shell
-npm install KChart-vue
-```
+## Use
 
 ```Vue
 <Chart :config="config" :data="fakeData" :onEnd="{
