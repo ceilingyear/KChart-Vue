@@ -377,8 +377,7 @@ function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
 }
 // 处理十字准星数据
 function handleIntersectData(e: TouchEvent) {
-  console.log(e);
-  
+
   // 最高k线
   const maxHigh = viewData.value.reduce((pre, cur) => {
     return Math.max(+cur.data[2], pre)
@@ -410,8 +409,7 @@ function handleIntersectData(e: TouchEvent) {
   const curPrice = ((config.canvas.height - y) * ratio) + maxL
   const lastPrice = (+initData.value[initData.value.length - 1][4])
   const amplitude = ((curPrice - lastPrice) / lastPrice * 100).toFixed(2)
-  console.log(item);
-  
+
   const data = [
     { title: '时间', value: dayjs(+item.data[0]).format('MM-DD HH:mm:ss') },
     { title: '开', value: formatNumber(+item.data[1]) },
