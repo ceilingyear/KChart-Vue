@@ -808,6 +808,7 @@ export function setupCanvas(canvas: HTMLCanvasElement) {
     console.error('canvas.getContext("2d") is null');
     return;
   }
+  if (!isMobileDevice()) return ctx
   const htmlCanvasRect: any = canvas.getBoundingClientRect();
 
   canvas.width = htmlCanvasRect.width * dpr;
@@ -851,4 +852,8 @@ export function calculatePriceChangePercentage(oldPrice: number, newPrice: numbe
     return "";
   }
   return (((newPrice - oldPrice) / oldPrice) * 100).toFixed(2);
+}
+// 是否是移动端
+export function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }

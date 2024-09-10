@@ -23,17 +23,18 @@ import { fakeData } from './views/chart/util';
 import { KChartConfigType } from './views/chart/index.type';
 
 const route = useRoute()
-const router = useRouter()
 const config: KChartConfigType = {
   canvas: {
-    width: window.screen.width,
+    width: window.innerWidth,
     height: 300,
     dampingFactor: .95, //阻尼系数0-1 越小阻尼越低
     top: 50
   },
   k: {
     margin: 1,
-    initKCount:50
+    initKCount:200,
+    // initWidth:4,
+    // minWidth:1,
   }
 }
 

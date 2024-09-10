@@ -1,7 +1,9 @@
 # KChart-vue
-A Copy Bitget K-line drawn by JS Canvas;Demo:http://www.jiahong.club/#/chart (If it is on PC, please open debugging and switch the device to mobile)
+
+A Copy Bitget K-line drawn by JS Canvas;Demo:http://www.jiahong.club/#/chart (support PC)
 
 ## Intro
+
 KChart-vue is an open-source K-line chart developed based on the vue framework, supporting related functions such as dragging, zooming, data loading optimization, damping, etc; all K-line data can be directly loaded (K-lines can be smoothly loaded without lazy loading).
 
 ## Property
@@ -14,27 +16,27 @@ KChart-vue is an open-source K-line chart developed based on the vue framework, 
 
 ### config
 
-| Key                  | Type   | Isrequire | default            | Description                                            |
-| -------------------- | ------ | --------- | ------------------ | ------------------------------------------------------ |
-| canvas-width         | number | true      | -                  | Canvas width                                           |
-| canvas-height        | number | true      | -                  | Canvas height                                          |
-| canvas-dampingFactor | number | true      | -                  | The range is 0 - 1. Set the damping feeling of sliding |
-| canvas-top           | number | true      | -                  | The distance from the top                              |
-| bg-horCount          | number | false     | 5                  | Backgroud horizontal line`s count                      |
-| bg-verCount          | number | false     | 6                  | Backgroud vertical line`s count                        |
-| bg-text              | string | false     | -                  | Backgroud text                                         |
-| bg-textColor         | string | false     | rgba(0, 0, 0, 0.2) | Backgroud text color                                   |
-| bg-fontSize          | number | false     | 30                 | Backgroud font-size                                    |
-| bg-bgColor           | string | false     | white              | Backgroud color                                        |
-| k-offset-top         | number | false     | 0.05               | The range is 0 - 1, kLine top offset                   |
-| k-offset-bottom      | number | false     | 0.05               | The range is 0 - 1, kLine bottom offset                |
-| k-initKCount         | number | false     | 50                 | The initialized count of the K-line                    |
-| k-initWidth          | number | false     | 5                  | The initialized width of the K-line                    |
-| k-maxWidth           | number | false     | 20                 | The max width of the K-line                            |
-| k-minWidth           | number | false     | 3                  | The minWidth width of the K-line                       |
-| k-color-up           | string | false     | #03a0aa            | The color when the K-line is up                        |
-| k-color-down         | string | false     | #ee4639            | The color when the K-line is down                      |
-| k-margin             | number | false     | 1                  | The margin of the K-line                               |
+| Key                  | Type   | Isrequire | default            | Description                                               |
+| -------------------- | ------ | --------- | ------------------ | --------------------------------------------------------- |
+| canvas-width         | number | true      | -                  | Canvas width                                              |
+| canvas-height        | number | true      | -                  | Canvas height                                             |
+| canvas-dampingFactor | number | true      | -                  | The range is 0 - 1. Set the damping feeling of sliding    |
+| canvas-top           | number | true      | -                  | The distance from the top                                 |
+| bg-horCount          | number | false     | 5                  | Backgroud horizontal line`s count                         |
+| bg-verCount          | number | false     | 6                  | Backgroud vertical line`s count                           |
+| bg-text              | string | false     | -                  | Backgroud text                                            |
+| bg-textColor         | string | false     | rgba(0, 0, 0, 0.2) | Backgroud text color                                      |
+| bg-fontSize          | number | false     | 30                 | Backgroud font-size                                       |
+| bg-bgColor           | string | false     | white              | Backgroud color                                           |
+| k-offset-top         | number | false     | 0.05               | The range is 0 - 1, kLine top offset                      |
+| k-offset-bottom      | number | false     | 0.05               | The range is 0 - 1, kLine bottom offset                   |
+| k-initKCount         | number | false     | 50                 | The initialized count of the K-line                       |
+| k-initWidth          | number | false     | 5                  | The initialized width of the K-line                       |
+| k-maxWidth           | number | false     | 20                 | The max width of the K-line                               |
+| k-minWidth           | number | false     | 3                  | The minWidth width of the K-line , the recommendation > 3 |
+| k-color-up           | string | false     | #03a0aa            | The color when the K-line is up                           |
+| k-color-down         | string | false     | #ee4639            | The color when the K-line is down                         |
+| k-margin             | number | false     | 1                  | The margin of the K-line                                  |
 
 ### data
 

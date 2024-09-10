@@ -1,5 +1,6 @@
 <template>
-  <div :style="{ position: 'relative', width: config.canvas.width, height: config.canvas.height + 'px' }">
+  <div
+    :style="{ position: 'relative', width: config.canvas.width, height: config.canvas.height + 'px', cursor: isMobile ? 'default' : 'crosshair' }">
     <canvas class="canvasBg" :style="{ backgroundColor: config.bg.bgColor }" :width="config.canvas.width"
       :height="config.canvas.height" ref="canvasBg" id="canvasId"></canvas>
     <canvas class="canvas" :width="config.canvas.width" :height="config.canvas.height" ref="canvas" @click=""></canvas>
@@ -33,18 +34,19 @@
 </template>
 
 <script lang='ts' setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { calculatePriceChangePercentage, formatNumber, getDistance, pointDirWithCanvas, setupCanvas } from './util';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { calculatePriceChangePercentage, formatNumber, getDistance, isMobileDevice, pointDirWithCanvas, setupCanvas } from './util';
 import { ChartData, KChartConfigType, DashboardFormData, MouseEvent } from './index.type';
 import dayjs from 'dayjs';
 
 const dpr = window.devicePixelRatio
+const isMobile = isMobileDevice()
 const props = defineProps<{
   config: KChartConfigType,
   data: string[][],
   onEnd?: {
     offsetNumber?: number,
-    fn: (e: TouchEvent) => void
+    fn: (e: TouchEvent | globalThis.MouseEvent) => void
   }
 }>()
 const config = {
@@ -52,7 +54,7 @@ const config = {
   bg: {
     horCount: props.config.bg?.horCount || 5, //背景横线
     verCount: props.config.bg?.verCount || 6, //背景纵线
-    text: props.config.bg?.text ,
+    text: props.config.bg?.text,
     textColor: props.config.bg?.textColor || 'rgba(0, 0, 0, 0.2)',
     fontSize: props.config.bg?.fontSize || 30,
     bgColor: props.config.bg?.bgColor || 'white'
@@ -108,12 +110,20 @@ onMounted(() => {
   initData.value = props.data
   drawBg()
   handleK()
-  event()
+  if (isMobile) {
+    mobileEvent()
+  } else {
+    webEvent()
+  }
+})
+onUnmounted(() => {
+  removeEvent()
 })
 // 监听拖动后重绘
 watch([kConfig], (value, old) => {
   reDraw()
 })
+// 重绘
 function reDraw() {
   if (!ctx.value) return
   intersect.value.isShow = false
@@ -126,17 +136,22 @@ function reDraw() {
 const kCount = computed(() => {
   return Math.round(config.canvas.width / (kConfig.width + config.k.margin))
 })
-// 事件
-function event() {
+// 移动端事件
+function mobileEvent() {
   if (!canvas.value) return
   let beginX = 0 //开始位置
   let beginT = 0 //开始时间
   let startDistance = 0; //开始的距离
   let startWidth = 0 //开始的k线宽度
+  let startMargin = 0 //开始的k线margin
   let lastTouch: TouchList | undefined
   let eventType: MouseEvent;
   let timer: any;
+  let timer2: any;
   canvas.value.addEventListener('touchstart', (e: TouchEvent) => {
+    if (timer2) {
+      clearInterval(timer2)
+    }
     if (e.targetTouches.length === 1) {
       lastTouch = e.targetTouches
       beginX = e.targetTouches[0].clientX
@@ -149,7 +164,6 @@ function event() {
           handleIntersectData(e)
         }, 300);
       }
-
     }
     if (e.targetTouches.length === 2) {
       const touch1 = e.targetTouches[0];
@@ -157,6 +171,7 @@ function event() {
       lastTouch = e.targetTouches
       startDistance = getDistance(touch1, touch2);
       startWidth = kConfig.width
+      startMargin = config.k.margin
       eventType = 'scale'
     }
   })
@@ -196,9 +211,11 @@ function event() {
       const deltaDistance = currentDistance - startDistance;
       const newScale = 1 + (deltaDistance / startDistance)
       const res = startWidth * newScale
+      const res2 = startMargin * newScale
       // 是否在区间范围内
       if ((kConfig.width < config.k.maxWidth && res > kConfig.width || kConfig.width > config.k.minWidth && res < kConfig.width)) {
         kConfig.width = res
+        config.k.margin = res2
       }
     }
     // 十字准星
@@ -224,9 +241,9 @@ function event() {
       let speed = moveX / moveT;
       if (Math.abs(speed) < .5) return
       speed = speed * 20 //阻尼移动的速度
-      const time: any = setInterval(() => {
-        if (Math.abs(speed) <= 0.1) return clearInterval(time)
-        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(time)
+      timer2= setInterval(() => {
+        if (Math.abs(speed) <= 0.1) return clearInterval(timer2)
+        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(timer2)
         kConfig.draggableX += speed
         speed *= config.canvas.dampingFactor;
       }, 0);
@@ -235,8 +252,130 @@ function event() {
       startDistance = 0
       lastTouch = undefined
       startWidth = 0
+      startMargin = 0
     }
   })
+}
+// web事件
+function webEvent() {
+  if (!canvas.value) return
+  let beginX = 0 //开始位置
+  let beginT = 0 //开始时间
+  let lastTouch: globalThis.MouseEvent | undefined
+  let eventType: MouseEvent;
+  let timer: any;
+  canvas.value.onmousemove = (e: globalThis.MouseEvent) => {
+    reDraw()
+    handleIntersectData(e)
+  }
+  canvas.value.onmouseout = (e: globalThis.MouseEvent) => {
+    reDraw()
+  }
+  canvas.value.onmousedown = (e: globalThis.MouseEvent) => {
+    lastTouch = e
+    beginX = e.clientX
+    beginT = Date.now()
+    eventType = 'draggable'
+    if (timer) {
+        clearInterval(timer)
+        timer = undefined
+        return
+      }
+    canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
+      if (!lastTouch) {
+        lastTouch = e
+      }
+      const thisTouch = e
+
+      const isToLeft = lastTouch.clientX < thisTouch.clientX //向左滑动
+      const isToRight = lastTouch.clientX > thisTouch.clientX //向右滑动
+      const result = thisTouch.clientX - lastTouch.clientX
+      const offsetNumber = props.onEnd?.offsetNumber || 0
+      // 加载事件
+      if (kConfig.draggableX + result >= ((kConfig.width + config.k.margin) * (initData.value.length - offsetNumber)) && isToLeft) {
+        props.onEnd?.fn(e)
+      }
+      // 如果超过数据不滑动了
+      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft) {
+        kConfig.draggableX = (kConfig.width + config.k.margin) * initData.value.length
+        return lastTouch = e
+      }
+      if (kConfig.draggableX + result <= (kConfig.width + config.k.margin) && isToRight) {
+        kConfig.draggableX = (kConfig.width + config.k.margin)
+        return lastTouch = e
+      }
+      kConfig.draggableX += result
+      lastTouch = e
+    }
+    canvas.value!.onmouseup = (e: globalThis.MouseEvent) => {
+      canvas.value!.onmousemove = null
+
+      // 处理拖动后的阻尼感
+      // 如果超过数据不滑动了
+      if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= (kConfig.width + config.k.margin)) {
+        return lastTouch = e
+      }
+      e.preventDefault();
+      const endX = e.clientX
+      const endT = Date.now()
+      const moveX = endX - beginX;
+      const moveT = endT - beginT;
+      let speed = moveX / moveT;
+      if (Math.abs(speed) < .5) {
+        canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
+          reDraw()
+          handleIntersectData(e)
+        }
+        return
+      }
+      speed = speed * 10 //阻尼移动的速度
+      timer = setInterval(() => {
+        if (Math.abs(speed) <= 0.1) {
+          clearInterval(timer)
+          timer = null
+          canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
+            reDraw()
+            handleIntersectData(e)
+          }
+          return
+        }
+        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(timer)
+        kConfig.draggableX += speed
+        speed *= config.canvas.dampingFactor;
+      }, 0);
+    }
+  }
+  // 缩放
+  window.onkeydown = (e) => {
+    if (!canvas.value) return
+    if (e.key === 'Meta') {
+      canvas.value.onwheel = (e: any) => {
+        if (e.wheelDeltaY > 0 && kConfig.width + 1 <= config.k.maxWidth) {
+          kConfig.width++
+          config.k.margin += .1
+        }
+        if (e.wheelDeltaY < 0 && kConfig.width - 1 >= config.k.minWidth) {
+          kConfig.width--
+          config.k.margin -= .1
+        }
+      }
+    }
+  }
+  window.onkeyup = e => {
+    if (!canvas.value) return
+    canvas.value.onwheel = null
+  }
+}
+function removeEvent() {
+  if (!canvas.value) return
+  canvas.value.ontouchstart = null;
+  canvas.value.ontouchmove = null;
+  canvas.value.ontouchend = null;
+  canvas.value.onmousemove = null;
+  canvas.value.onmousedown = null;
+  canvas.value.onmouseup = null;
+  canvas.value.onwheel = null;
+  window.onkeydown = null;
 }
 // 画背景
 function drawBg() {
@@ -283,9 +422,10 @@ function drawBg() {
 // 处理k线数据
 async function handleK() {
   if (!initData.value) return
-  const startDataCount = initData.value.length - Math.floor(kConfig.draggableX / (kConfig.width + config.k.margin)) - 1//计算开始K线下标
+  let startDataCount = initData.value.length - Math.floor(kConfig.draggableX / (kConfig.width + config.k.margin)) - 1//计算开始K线下标
+  startDataCount = startDataCount > 0 ? startDataCount : 0
   const endDataCount = kConfig.draggableX / (kConfig.width + config.k.margin) > kCount.value ? startDataCount + Math.round(config.canvas.width / (kConfig.width + config.k.margin)) + 1 : initData.value.length //计算结束K线下标=开始+页面K线数量
-  const data = initData.value.slice(startDataCount > 0 ? startDataCount : 0, endDataCount)
+  const data = initData.value.slice(startDataCount, endDataCount)
   // 最高k线
   const maxHigh = data.reduce((pre, cur) => {
     return Math.max(+cur[2], pre)
@@ -301,7 +441,6 @@ async function handleK() {
   // 最新数据
   const lastItem = initData.value[initData.value.length - 1]
   const index = (initData.value.length - 1 - startDataCount) //下标
-
   const heightMiddle = lastItem[4] > lastItem[1] ? 0 : (Math.max(+lastItem[1], +lastItem[4],) - Math.min(+lastItem[1], +lastItem[4],)) * ratio //柱体
   let y = ((maxHigh - Math.max(+lastItem[1], +lastItem[4],)) * ratio + config.k.offset.top * config.canvas.height) + heightMiddle  //y坐标 + 顶部针 + 是否大于收盘价 ？ 0 : 柱体高度
   if (y > config.canvas.height * (1 - config.k.offset.bottom)) {
@@ -317,7 +456,6 @@ async function handleK() {
   kConfig.ratio = ratio
   // 右侧数字
   handleRightNumber(ratio, maxLow, maxHigh)
-
   // 计算k线数据
   viewData.value = data.map((item, index) => {
     const heightTop = (+item[2] - Math.max(+item[1], +item[4],)) * ratio //顶部针
@@ -326,7 +464,7 @@ async function handleK() {
     let x = (kConfig.width * index) + index * config.k.margin //原始x坐标
 
     return {
-      x: x + ((kConfig.draggableX % (kConfig.width + 1)) - (kConfig.width + 1)),
+      x: startDataCount === 0 ? x : x + ((kConfig.draggableX % (kConfig.width + config.k.margin)) - (kConfig.width + config.k.margin)),
       y: (maxHigh - Math.max(+item[1], +item[4],)) * ratio + config.k.offset.top * config.canvas.height,
       width: kConfig.width,
       heightTop,
@@ -376,8 +514,7 @@ function handleRightNumber(ratio: number, maxLow: number, maxHigh: number) {
   }
 }
 // 处理十字准星数据
-function handleIntersectData(e: TouchEvent) {
-
+function handleIntersectData(e: any) {
   // 最高k线
   const maxHigh = viewData.value.reduce((pre, cur) => {
     return Math.max(+cur.data[2], pre)
@@ -394,18 +531,15 @@ function handleIntersectData(e: TouchEvent) {
   const maxL = maxLow - maxLowH //最低价格
   const ratio = (maxH - maxL) / config.canvas.height //每px=多少价格
 
-  const touchX = e.targetTouches[0].clientX
-  const isOutside = viewData.value.length * (kConfig.width + config.k.margin) < touchX
-  const item = isOutside ? viewData.value[viewData.value.length - 1] : viewData.value.find(item => item.x - 1 <= touchX && item.x + kConfig.width >= touchX)!
+  const touchX = isMobile ? e.targetTouches[0].clientX : e.clientX
+  // const isOutside = viewData.value.length * (kConfig.width + config.k.margin) < touchX
+  const item = viewData.value.find(item => item.x <= touchX && item.x + kConfig.width + config.k.margin >= touchX) || viewData.value[viewData.value.length - 1]
+  // console.log(item,isOutside,touchX, viewData.value[ viewData.value.length - 1]);
 
-  const x = item.x + kConfig.width / 2
-  const y = e.targetTouches[0].clientY - config.canvas.top //-上部tab的高度
+  const x = item.x + kConfig.width / 2 - .5
+  const y = isMobile ? e.targetTouches[0].clientY - config.canvas.top : e.clientY - config.canvas.top //-上部tab的高度
 
   if (y < 0 || y > config.canvas.height) return //超出范围
-  for (const key in item) {
-    const element = item[key as keyof ChartData];
-    element
-  }
   const curPrice = ((config.canvas.height - y) * ratio) + maxL
   const lastPrice = (+initData.value[initData.value.length - 1][4])
   const amplitude = ((curPrice - lastPrice) / lastPrice * 100).toFixed(2)
@@ -422,6 +556,7 @@ function handleIntersectData(e: TouchEvent) {
     { title: '量', value: formatNumber(+item.data[5] / 10000), append: '万' },
     { title: '额', value: formatNumber(+item.data[6] / 10000), append: '万' },
   ]
+
   intersect.value = {
     x, y, isShow: true, dir: pointDirWithCanvas(config.canvas.width, x), data, price: formatNumber(curPrice), amplitude: (+amplitude > 0 ? '+' : '') + amplitude + '%'
   }
@@ -460,31 +595,44 @@ function draw() {
       ctxC.stroke()
       ctxC.closePath()
     } else {
-      // 画带圆角的k线
-      const radius = kConfig.width >= 20 ? 2 : 1
-      ctxC.beginPath();
-      ctxC.moveTo(item.x + radius, item.y);
-      ctxC.lineTo(item.x + item.width - radius, item.y);
-      ctxC.arcTo(item.x + item.width, item.y, item.x + item.width, item.y + item.heightMiddle, radius);
-      ctxC.lineTo(item.x + item.width, item.y + item.heightMiddle - radius);
-      ctxC.arcTo(item.x + item.width, item.y + item.heightMiddle, item.x + item.width - radius, item.y + item.heightMiddle, radius);
-      ctxC.lineTo(item.x + radius, item.y + item.heightMiddle);
-      ctxC.arcTo(item.x, item.y + item.heightMiddle, item.x, item.y + item.heightMiddle - radius, radius);
-      ctxC.lineTo(item.x, item.y + radius);
-      ctxC.arcTo(item.x, item.y, item.x + radius, item.y, radius);
-      ctxC.closePath();
-      ctxC.fill()
+      // 优化缩放极小时
+      if (kConfig.width < 2) {
+        ctxC.strokeStyle = item.close > item.open ? config.k.color.up : config.k.color.down
+        ctxC.lineWidth = kConfig.width
+        ctxC.beginPath();
+        ctxC.moveTo(item.x, item.y);
+        ctxC.lineTo(item.x, item.y + item.heightMiddle);
+        ctxC.closePath();
+        ctxC.stroke()
+      } else {
+        // 画带圆角的k线
+        const radius = kConfig.width >= 20 ? 2 : 1
+        ctxC.beginPath();
+        ctxC.moveTo(item.x + radius, item.y);
+        ctxC.lineTo(item.x + item.width - radius, item.y);
+        ctxC.arcTo(item.x + item.width, item.y, item.x + item.width, item.y + item.heightMiddle, radius);
+        ctxC.lineTo(item.x + item.width, item.y + item.heightMiddle - radius);
+        ctxC.arcTo(item.x + item.width, item.y + item.heightMiddle, item.x + item.width - radius, item.y + item.heightMiddle, radius);
+        ctxC.lineTo(item.x + radius, item.y + item.heightMiddle);
+        ctxC.arcTo(item.x, item.y + item.heightMiddle, item.x, item.y + item.heightMiddle - radius, radius);
+        ctxC.lineTo(item.x, item.y + radius);
+        ctxC.arcTo(item.x, item.y, item.x + radius, item.y, radius);
+        ctxC.closePath();
+        ctxC.fill()
+      }
+
     }
     let width = 1
     if (kConfig.width < 10) {
-      width = .5
+      width = .7
     }
     if (kConfig.width < 2) {
-      width = .2
+      width = .4
+      item.width = 0
     }
     // 上下针
-    ctxC.rect(item.x + item.width / 2, item.y - item.heightTop, width, item.heightTop) //上部针
-    ctxC.rect(item.x + item.width / 2, item.y + item.heightMiddle, width, item.heightBottom) //下部针
+    ctxC.rect(item.x + item.width / 2 - width / 2, item.y - item.heightTop, width, item.heightTop) //上部针
+    ctxC.rect(item.x + item.width / 2 - width / 2, item.y + item.heightMiddle, width, item.heightBottom) //下部针
 
     ctxC.fill()
     // 是最高点，需要展示数字
