@@ -192,11 +192,11 @@ function mobileEvent() {
         props.onEnd?.fn(e)
       }
       // 如果超过数据不滑动了
-      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft ) {
+      if (kConfig.draggableX + result >= (kConfig.width + config.k.margin) * initData.value.length && isToLeft) {
         kConfig.draggableX = (kConfig.width + config.k.margin) * initData.value.length
         return lastTouch = e.targetTouches
       }
-      if ( kConfig.draggableX + result <=(kConfig.width + config.k.margin) && isToRight) {
+      if (kConfig.draggableX + result <= (kConfig.width + config.k.margin) && isToRight) {
         kConfig.draggableX = (kConfig.width + config.k.margin)
         return lastTouch = e.targetTouches
       }
@@ -241,7 +241,7 @@ function mobileEvent() {
       let speed = moveX / moveT;
       if (Math.abs(speed) < .5) return
       speed = speed * 20 //阻尼移动的速度
-      timer2= setInterval(() => {
+      timer2 = setInterval(() => {
         if (Math.abs(speed) <= 0.1) return clearInterval(timer2)
         if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(timer2)
         kConfig.draggableX += speed
@@ -277,10 +277,10 @@ function webEvent() {
     beginT = Date.now()
     eventType = 'draggable'
     if (timer) {
-        clearInterval(timer)
-        timer = undefined
-        return
-      }
+      clearInterval(timer)
+      timer = undefined
+      return
+    }
     canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
       if (!lastTouch) {
         lastTouch = e
@@ -313,6 +313,10 @@ function webEvent() {
       // 处理拖动后的阻尼感
       // 如果超过数据不滑动了
       if (kConfig.draggableX >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX <= (kConfig.width + config.k.margin)) {
+        canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
+          reDraw()
+          handleIntersectData(e)
+        }
         return lastTouch = e
       }
       e.preventDefault();
@@ -339,7 +343,14 @@ function webEvent() {
           }
           return
         }
-        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) return clearInterval(timer)
+        if (kConfig.draggableX + speed >= (kConfig.width + config.k.margin) * initData.value.length || kConfig.draggableX + speed <= (kConfig.width + config.k.margin)) {
+          canvas.value!.onmousemove = (e: globalThis.MouseEvent) => {
+            reDraw()
+            handleIntersectData(e)
+          }
+          clearInterval(timer)
+          return 
+        }
         kConfig.draggableX += speed
         speed *= config.canvas.dampingFactor;
       }, 0);
