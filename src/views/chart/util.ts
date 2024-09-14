@@ -808,7 +808,6 @@ export function setupCanvas(canvas: HTMLCanvasElement) {
     console.error('canvas.getContext("2d") is null');
     return;
   }
-  if (!isMobileDevice()) return ctx
   const htmlCanvasRect: any = canvas.getBoundingClientRect();
 
   canvas.width = htmlCanvasRect.width * dpr;
